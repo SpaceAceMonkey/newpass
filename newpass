@@ -1,0 +1,416 @@
+#!/bin/bash
+
+# File should use Unix-style line endings
+WORD_LIST='enable_with_additions.txt'
+NUM_WORDS=4
+# 0 = no restriction
+MIN_WORD_LENGTH=2
+# 0 = no restriction
+MAX_WORD_LENGTH=6
+# I really want to call this "NUM_NUMS" but my brain won't let me
+NUM_NUMBERS=1
+# 0 = apply no capitalization transforms
+# 1 = always capitalize first letter
+# 2 = randomly capitalize first letter
+# 4 = randomly capitalize letters in any position
+CAPITALIZATION_POLICY=0
+# No bounds checking for NUMBER_MIN and NUMBER_MAX; let the user do goofy things if she wants to
+NUMBER_MIN=10
+NUMBER_MAX=98
+NUM_SYMBOLS=1
+SYMBOL_STRING='!@#$%^&*()'
+# 0 = no spacing
+# 1 = spaces between words
+# 2 = spaces between numbers
+# 4 = spaces between symbols
+# 8 = spaces between all elements
+SPACING_POLICY=0
+# String to use for spacing
+DELIMITER=' '
+# When using random capitalization transforms, a number between 1 and 100 will be selected. If that
+# number is <= RANDOM_CAP_PERCENTAGE, the capitalization transform will be applied.
+RANDOM_CAP_PERCENTAGE=50
+# Whether to use od + /dev/urandom (1) or $RANDOM (0) to generate random numbers
+OD_RANDOM=1
+
+
+# Track whether -m and -M were specified. If one was used without the other, set the complementary
+# option to either 0 or 2^32-1, as appropriate.
+DEFAULT_NUMBER_MIN=true
+DEFAULT_NUMBER_MAX=true
+
+# As above, but for word length
+DEFAULT_MIN_WORD_LENGTH=true
+DEFAULT_MAX_WORD_LENGTH=true
+
+
+say_it() {
+	if [[ $PASSPHRASE_ONLY != true || $2 == true ]]; then
+		echo "$1"
+	fi
+}
+
+show_help() {
+	echo "Usage: newpass [options ...]"
+	echo "Available switches:"
+	echo "-a|--allspace: insert DELIMITER between all elements of the passphrase."
+	echo "-b|--bashrandom: Use Bash's \$RANDOM to generate random numbers, rather than using od to format output from /dev/urandom. This is intended as a backup to od and /dev/urandom, and is 
+subject to Bash's \$RANDOM limitations."
+	echo "-c|--wordcount \"n\" [4]: Use n words from WORDLIST when generating passphrase."
+	echo "-d|--delimiter \"DELIMITER\" [space]: Set DELIMITER to the string specified in \"DELIMITER.\""
+	echo "-f|--capfirst: Capitalize the first letter of each word in the passphrase."
+	echo "-F|--randomcapfirst: Randomly capitalize the first letter of some words in the passphrase. See also -r|--randomcappercentage."
+	echo "-k|--symbolcount \"n\" [1]: Use n symbols from SYMBOL_STRING when generating passphrase."
+	echo "-K|--symbolstring \"SYMBOL_STRING\" [!@#$%^&*()]: Set SYMBOL_STRING to the value in \"SYMBOL_STRING.\" The characters in this string will be used when inserting symbols into the 
+passphrase."
+	echo "-l|--minwordlength \"n\" [2]: Filter WORDLIST to use no words shorter than n letters."
+	echo "-L|--maxwordlength \"n\" [6]: Filter WORDLIST to use no words longer than n letters."
+	echo "-m|--numbermin \"n\" [10]: Use numbers no smaller than n when adding numbers to the passphrase."
+	echo "-M|--numbermax \"n\" [98]: Use numbers no larger than n when adding numbers to the passphrase. This number cannot exceed 32767 when using --bashrandom."
+	echo "-n|--numbercount \"x\" [1]: Add x numbers to the passphrase."
+	echo "-q|--quiet: Suppress all output except for the generated passphrase."
+	echo "-r|--randomcappercentage \"n\" (0-100) [50]: When applying random capitalization transforms, capitalize a letter n percent of the time."
+	echo "-R|--randomcap: Apply random capitalization to all letters in each word, using --randomcappercentage."
+	echo "-s|--wordspace: Insert DELIMITER between words in the passphrase."
+	echo "-S|--numberspace: Insert DELIMITER between numbers in the passphrase."
+	echo "-w|--wordlist \"WORDLIST\" [enable_with_additions.txt]: Use the file specified in WORDLIST to select words for the passphrase."
+	echo "-z|--symbolspace: Insert DELIMITER between symbols in the passphrase."
+}
+
+
+PASSPHRASE_ONLY=false
+RANDOM=$$
+while [[ $# -gt 0 ]]
+do
+        key="$1"
+
+        case $key in
+                -A|--allspace)
+                        SPACING_POLICY=8
+                ;;
+                -b|--bashrandom)
+                        OD_RANDOM=0
+                ;;
+                -c|--wordcount)
+                        NUM_WORDS="$2"
+                        shift
+                ;;
+                -d|--delimiter)
+                        DELIMITER="$2"
+                        shift
+                ;;
+                -f|--capfirst)
+                        CAPITALIZATION_POLICY=1
+                ;;
+                -F|--randomcapfirst)
+                        CAPITALIZATION_POLICY=2
+                ;;
+                -h|--help)
+                        show_help
+			exit 0
+                ;;
+		-k|--symbolcount)
+			NUM_SYMBOLS="$2"
+			shift
+		;;
+		-K|--symbolstring)
+			SYMBOL_STRING="$2"
+			shift
+		;;
+                -l|--minwordlength)
+                        MIN_WORD_LENGTH="$2"
+			DEFAULT_MIN_WORD_LENGTH=false
+                        shift
+                ;;
+                -L|--maxwordlength)
+                        MAX_WORD_LENGTH="$2"
+			DEFAULT_MAX_WORD_LENGTH=false
+                        shift
+                ;;
+                -m|--numbermin)
+                        NUMBER_MIN="$2"
+			DEFAULT_NUMBER_MIN=false
+                        shift
+                ;;
+                -M|--numbermax)
+                        NUMBER_MAX="$2"
+			DEFAULT_NUMBER_MAX=false
+                        shift
+                ;;
+                -n|--numbercount)
+                        NUM_NUMBERS="$2"
+                        shift
+                ;;
+		-q|--quiet)
+			PASSPHRASE_ONLY=true
+		;;
+                -r|--randomcappercentage)
+                        RANDOM_CAP_PERCENTAGE="$2"
+                        shift
+                ;;
+                -R|--randomcap)
+                        CAPITALIZATION_POLICY=4
+                ;;
+                -s|--wordspace)
+                        SPACING_POLICY=1
+                ;;
+                -S|--numberspace)
+                        SPACING_POLICY=2
+                ;;
+		--TheWindBeneathMyWings)
+			say_it "correct horse battery staple"
+			exit 1337
+		;;
+                -w|--wordlist)
+                        WORD_LIST="$2"
+                        shift
+                ;;
+                -z|--symbolspace)
+                        SPACING_POLICY=4
+                ;;
+        esac
+        shift
+done
+
+if [[ $DEFAULT_NUMBER_MIN == false && $DEFAULT_NUMBER_MAX == true ]]; then
+	NUMBER_MAX=$((2**32-1))
+elif [[ $DEFAULT_NUMBER_MIN == true && $DEFAULT_NUMBER_MAX == false  ]]; then
+	NUMBER_MIN=0
+fi
+
+if [[ $DEFAULT_MIN_WORD_LENGTH == false && $DEFAULT_MAX_WORD_LENGTH == true ]]; then
+	# Theoretically, words in our word list could be of any length. Rather than
+	# process the word list to find the longest word, we'll just set this to
+	# an obnoxious value, and if you exceed that, it's on you.
+	MAX_WORD_LENGTH=99998
+elif [[ $DEFAULT_MIN_WORD_LENGTH == true && $DEFAULT_MAX_WORD_LENGTH == false  ]]; then
+	MIN_WORD_LENGTH=0
+fi
+
+# Generate a number between 0 (inclusive) and $1 (exclusive)
+# If --bashrandom is set, this will fall back to using
+# $RANDOM, but you should be aware that $RANDOM will only
+# generate number <= 32767, effectively limiting your
+# word list to the first 32767 words.
+#
+# ToDo: Add support for a range, rather just a max.
+# ToDo: Maybe find something better than modulo
+# ToDo: Math $RANDOM to generate numbers > 32767
+get_random_number() {
+	local get_element_random_number=-1
+	if [[ $# -gt 0 && $1 -gt 0 ]]; then
+		if [[ $OD_RANDOM -eq 1 ]]; then
+			local od_command="od -vAn -N4 -tu4 /dev/urandom"
+			# Evaluate twice to get rid of the leading whitespace from od.
+			get_element_random_number=$(($($od_command) % $1))
+		else
+			get_element_random_number=$((RANDOM % $1))
+		fi
+	fi
+
+	echo "$get_element_random_number"
+}
+
+error () {
+  say_it "$1" true
+  exit 1
+}
+
+if [[ $WORD_COUNT > 0 ]]; then
+	if [[ ! -e $WORD_LIST ]]; then
+	        error "File $WORD_LIST does not exist."
+	fi
+
+	if [[ ! -r $WORD_LIST ]]; then
+	        error "File $WORD_LIST cannot be read."
+	fi
+fi
+
+if [[ $NUM_WORDS -lt 0 ]]; then
+        error "Number of words (-w|--wordcount) must be >= 0"
+fi
+
+if [[ $NUM_NUMBERS -lt 0 ]]; then
+        error "Number of numbers (-n|--numbercount) must be >= 0"
+fi
+
+if [[ $MIN_WORD_LENGTH -lt 0 ]]; then
+        error "Minimum word length (-x|--minwordlength) must be >= 0."
+fi
+
+if [[ $MAX_WORD_LENGTH -lt 0 ]]; then
+        error "Maximum word length (-X|--maxwordlength) must be >= 0."
+fi
+
+if [[ $MAX_WORD_LENGTH -lt $MIN_WORD_LENGTH && $MAX_WORD_LENGTH -gt 0 ]]; then
+        error "Maximum word length (-X|--maxwordlength) must be >= minimum word length (-x|--minwordlength), or set to 0 for no maximum."
+fi
+
+if [[ $((NUM_WORDS+NUM_NUMBERS)) -lt 1 ]]; then
+        error "The combined count of words and numbers to be used in generating the password must be > 0."
+fi
+
+if [[ $NUM_WORDS > 0  ]]; then
+	say_it "Parsing word list."
+	OLD_IFS="$IFS"
+	IFS=$'\n'
+	FILTER_COMMAND="awk '{ if (($MIN_WORD_LENGTH == 0 || length(\$0) >= $MIN_WORD_LENGTH) && ($MAX_WORD_LENGTH == 0 || length(\$0) <= $MAX_WORD_LENGTH)) print }' $WORD_LIST"
+	WORD_POOL=(`eval "$FILTER_COMMAND"`)
+	IFS="$OLD_IFS"
+fi
+
+GENERATION_METRICS="Generating passphrase using $NUM_WORDS word(s)"
+if [[ $NUM_WORDS > 0 ]]; then
+	GENERATION_METRICS=$GENERATION_METRICS" from a pool of $((${#WORD_POOL[@]}+1)) words"
+fi
+GENERATION_METRICS=$GENERATION_METRICS", $NUM_NUMBERS number(s)"
+if [[ $NUM_NUMBERS > 0 ]]; then
+	GENERATION_METRICS=$GENERATION_METRICS" in the range of $NUMBER_MIN to $NUMBER_MAX"
+fi
+GENERATION_METRICS=$GENERATION_METRICS", and $NUM_SYMBOLS symbol(s)"
+# If you have ridiculous symbols, or a huge number of them, this output could be garbled. Using the -q switch when you run newpass
+# suppresses this, and all other non-passphrase output.
+if [[ $NUM_SYMBOLS > 0 ]]; then
+	GENERATION_METRICS=$GENERATION_METRICS" selected from $SYMBOL_STRING"
+fi
+GENERATION_METRICS=$GENERATION_METRICS"."
+say_it "$GENERATION_METRICS"
+
+remove_element_type_by_name() {
+	for index in $(seq 0 $((${#REMAINING_ELEMENT_TYPES[@]}-1)))
+	do
+		if [[ ${REMAINING_ELEMENT_TYPES[$index]} == "$1"  ]]; then
+			unset REMAINING_ELEMENT_TYPES[$index]
+			REMAINING_ELEMENT_TYPES=("${REMAINING_ELEMENT_TYPES[@]}")
+		fi
+	done
+}
+
+#
+# Generate entropy if system has rngd installed? Skip it for now.
+#
+add_get_element_random_word() {
+        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'word')$(apply_capitalization_transform "$(get_element_random_word)")
+        ((NUM_WORDS-=1))
+	if [[ $NUM_WORDS -lt 1  ]]; then
+		remove_element_type_by_name 'word'
+	fi
+        PREVIOUS_ELEMENT_TYPE='word'
+}
+
+add_get_element_random_number() {
+        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'number')"$(get_element_random_number)"
+        ((NUM_NUMBERS-=1))
+	if [[ $NUM_NUMBERS -lt 1  ]]; then
+		remove_element_type_by_name 'number'
+	fi
+        PREVIOUS_ELEMENT_TYPE='number'
+}
+
+add_get_element_random_symbol() {
+        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'symbol')"$(get_element_random_symbol)"
+        ((NUM_SYMBOLS-=1))
+	if [[ $NUM_SYMBOLS -lt 1  ]]; then
+		remove_element_type_by_name 'symbol'
+	fi
+        PREVIOUS_ELEMENT_TYPE='symbol'
+}
+
+get_element_random_word() {
+	local element
+        element=$(echo "${WORD_POOL[$(get_random_number ${#WORD_POOL[@]})]}"|tr -cd '[:alnum:]')
+        echo "$element"
+}
+
+get_element_random_number() {
+	local element
+        element=$(($(get_random_number $((NUMBER_MAX-NUMBER_MIN+1)))+NUMBER_MIN))
+        echo "$element"
+}
+
+get_element_random_symbol() {
+        local element
+	element=${SYMBOL_STRING:$(get_random_number ${#SYMBOL_STRING}):1}
+        echo "$element"
+}
+
+apply_capitalization_transform() {
+	local new_word=$1
+	case $CAPITALIZATION_POLICY in
+		# Always capitalize first letter
+		1)
+			new_word=$(tr '[:lower:]' '[:upper:]' <<< ${new_word:0:1})${new_word:1}
+		;;
+		# Sometimes capitalize first letter, based on RANDOM_CAP_PERCENTAGE
+		2)
+			local get_element_random_number=$(($(get_random_number 100)+1))
+			if [[ $get_element_random_number -le $RANDOM_CAP_PERCENTAGE ]]; then
+				new_word=$(tr '[:lower:]' '[:upper:]' <<< ${new_word:0:1})${new_word:1}
+			fi
+		;;
+		4)
+			for index in $(seq 0 ${#new_word})
+			do
+				local get_element_random_number=$(($(get_random_number 100)+1))
+				if [[ $get_element_random_number -le $RANDOM_CAP_PERCENTAGE ]]; then
+					new_word=${new_word:0:$index}$(tr '[:lower:]' '[:upper:]' <<< ${new_word:$index:1})${new_word:$((index+1))}
+				fi
+			done
+		;;
+	esac
+
+	echo "$new_word"
+}
+
+conditionally_add_space() {
+        SPACE=''
+        if [[ $SPACING_POLICY != 0 && $1 != '' ]]; then
+                if [[ $SPACING_POLICY == 8 || ($SPACING_POLICY == 4 && $1 == 'symbol' && $2 == 'symbol') || ($SPACING_POLICY == 2 && $1 == 'number' && $2 == 'number') || ($SPACING_POLICY == 1 && $1 == 'word' && $2 == 'word') ]]; then
+                        SPACE=$DELIMITER
+                fi
+        fi
+        echo "$SPACE"
+}
+
+load_element_types() {
+	if [[ $NUM_WORDS -gt 0 ]]; then
+		REMAINING_ELEMENT_TYPES+=('word')
+	fi
+	if [[ $NUM_NUMBERS -gt 0 ]]; then
+		REMAINING_ELEMENT_TYPES+=('number')
+	fi
+	if [[ $NUM_SYMBOLS -gt 0 ]]; then
+		REMAINING_ELEMENT_TYPES+=('symbol')
+	fi
+}
+
+generate_passphrase() {
+	while [[ ${#REMAINING_ELEMENT_TYPES} -gt 0 ]]
+	do
+		local element_type_to_generate=${REMAINING_ELEMENT_TYPES[((($(get_random_number ${#REMAINING_ELEMENT_TYPES}))))]}
+		case $element_type_to_generate in
+			# For convenience, the add_*_* methods also handle decrementing NUM_* variables,
+			# and removing unneeded elements from REMAINING_ELEMENT_TYPES
+			word)
+				add_get_element_random_word
+			;;
+			number)
+				add_get_element_random_number
+			;;
+			symbol)
+				add_get_element_random_symbol
+			;;
+		esac
+	done
+}
+
+PASSPHRASE=''
+PREVIOUS_ELEMENT_TYPE=''
+REMAINING_ELEMENT_TYPES=()
+load_element_types
+generate_passphrase
+
+say_it ""
+say_it "$PASSPHRASE" true
+say_it ""
+

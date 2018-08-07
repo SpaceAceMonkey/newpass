@@ -71,10 +71,10 @@ passphrase."
 	echo "-q|--quiet: Suppress all output except for the generated passphrase."
 	echo "-r|--randomcappercentage \"n\" (0-100) [50]: When applying random capitalization transforms, capitalize a letter n percent of the time."
 	echo "-R|--randomcap: Apply random capitalization to all letters in each word, using --randomcappercentage."
-	echo "-s|--wordspace: Insert DELIMITER between words in the passphrase."
-	echo "-S|--numberspace: Insert DELIMITER between numbers in the passphrase."
+	echo "-s|--wordspace: Insert DELIMITER between words in the passphrase. DELIMITER will only be inserted between neighboring words."
+	echo "-S|--numberspace: Insert DELIMITER between numbers in the passphrase. DELIMITER will only be inserted between neighboring numbers."
 	echo "-w|--wordlist \"WORDLIST\" [enable_with_additions.txt]: Use the file specified in WORDLIST to select words for the passphrase."
-	echo "-z|--symbolspace: Insert DELIMITER between symbols in the passphrase."
+	echo "-z|--symbolspace: Insert DELIMITER between symbols in the passphrase. DELIMITER will only be inserted between neighboring symbols."
 }
 
 
@@ -85,7 +85,7 @@ do
         key="$1"
 
         case $key in
-                -A|--allspace)
+                -a|--allspace)
                         SPACING_POLICY=8
                 ;;
                 -b|--bashrandom)
@@ -192,10 +192,6 @@ fi
 # $RANDOM, but you should be aware that $RANDOM will only
 # generate number <= 32767, effectively limiting your
 # word list to the first 32767 words.
-#
-# ToDo: Add support for a range, rather just a max.
-# ToDo: Maybe find something better than modulo
-# ToDo: Math $RANDOM to generate numbers > 32767
 get_random_number() {
 	local get_element_random_number=-1
 	if [[ $# -gt 0 && $1 -gt 0 ]]; then

@@ -145,6 +145,13 @@ paradichlorobenzenes_&_6_spectroheliographies_#_10
 468621932994sPortivenesSes ForEsiGhtednesS]
 ```
 
+**Generate a 32-character password consisting of random letters, numbers, and symbols, without using a wordlist**
+```./newpass -c 0 -n 0 -k 32 -K "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!@#\$%^&*() "```
+```
+SlI14YvZ!WIq J!V^ 33oYE8j3K c36X
+```
+
+
 
 
 

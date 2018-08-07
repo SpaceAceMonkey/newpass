@@ -242,8 +242,8 @@ if [[ $MAX_WORD_LENGTH -lt $MIN_WORD_LENGTH && $MAX_WORD_LENGTH -gt 0 ]]; then
         error "Maximum word length (-X|--maxwordlength) must be >= minimum word length (-x|--minwordlength), or set to 0 for no maximum."
 fi
 
-if [[ $((NUM_WORDS+NUM_NUMBERS)) -lt 1 ]]; then
-        error "The combined count of words and numbers to be used in generating the password must be > 0."
+if [[ $((NUM_WORDS+NUM_NUMBERS+NUM_SYMBOLS)) -lt 1 ]]; then
+        error "The combined count of words, numbers, and symbols to be used in generating the password must be > 0."
 fi
 
 if [[ $NUM_WORDS > 0  ]]; then

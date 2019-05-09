@@ -7,22 +7,34 @@ NUM_WORDS=4
 MIN_WORD_LENGTH=2
 # 0 = no restriction
 MAX_WORD_LENGTH=6
-# I really want to call this "NUM_NUMS" but my brain won't let me
-NUM_NUMBERS=1
 # 0 = apply no capitalization transforms
 # 1 = always capitalize first letter
 # 2 = randomly capitalize first letter
 # 4 = randomly capitalize letters in any position
 CAPITALIZATION_POLICY=0
+
+# These are not necessarily limited to alphabetical characters, but I
+# wanted to separate a-z from 0-9 and the symbols list.
+CHAR_ALPHA_LOWER='abcdefghijklmnopqrstuvwxyz'
+CHAR_ALPHA_UPPER='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+ALPHA_STRING="$CHAR_ALPHA_LOWER$CHAR_ALPHA_UPPER"
+NUM_ALPHA=0
+
+CHAR_NUMERIC='0123456789'
+# I really want to call this "NUM_NUMS" but my brain won't let me
+NUM_NUMBERS=1
 # No bounds checking for NUMBER_MIN and NUMBER_MAX; let the user do goofy things if she wants to
 NUMBER_MIN=10
 NUMBER_MAX=98
+
+CHAR_STANDARD_SYMBOLS='!@#$%^&*()'
+SYMBOL_STRING="$CHAR_STANDARD_SYMBOLS"
 NUM_SYMBOLS=1
-SYMBOL_STRING='!@#$%^&*()'
+
 # 0 = no spacing
 # 1 = spaces between words
 # 2 = spaces between numbers
-# 4 = spaces between symbols
+# 4 = spaces between alpha and/or symbols
 # 8 = spaces between all elements
 SPACING_POLICY=0
 # String to use for spacing
@@ -44,6 +56,7 @@ DEFAULT_MIN_WORD_LENGTH=true
 DEFAULT_MAX_WORD_LENGTH=true
 
 
+
 say_it() {
 	if [[ $PASSPHRASE_ONLY != true || $2 == true ]]; then
 		echo "$1"
@@ -58,6 +71,8 @@ show_help() {
 subject to Bash's \$RANDOM limitations."
 	echo "-c|--wordcount \"n\" [4]: Use n words from WORDLIST when generating passphrase."
 	echo "-d|--delimiter \"DELIMITER\" [space]: Set DELIMITER to the string specified in \"DELIMITER.\""
+	echo "-e|--alphacount \"n\" [8]: Use n symbols from ALPHA_STRING when generating passphrase."
+	echo "-E|--alphastring \"ALPHA_STRING\" [a-zA-Z]: Set ALPHA_STRING to the value in \"SYMBOL_STRING\""
 	echo "-f|--capfirst: Capitalize the first letter of each word in the passphrase."
 	echo "-F|--randomcapfirst: Randomly capitalize the first letter of some words in the passphrase. See also -r|--randomcappercentage."
 	echo "-k|--symbolcount \"n\" [1]: Use n symbols from SYMBOL_STRING when generating passphrase."
@@ -77,6 +92,38 @@ passphrase."
 	echo "-z|--symbolspace: Insert DELIMITER between symbols in the passphrase. DELIMITER will only be inserted between neighboring symbols."
 }
 
+show_help_policy() {
+	echo
+	echo "Newpass policy help"
+	echo "Policies are a short-hand method of setting password generation options. Any options specified before the policy on the command-line"
+	echo "will be overwritten by the settings in the policy. Any options specified after the policy on the command-line will override the policy's options."
+	echo
+}
+
+set_policy() {
+	key="$1"
+
+	case $key in
+		GENERIC|generic)
+			SYMBOL_STRING="$CHAR_STANDARD_SYMBOLS"
+			ALPHA_STRING="$CHAR_ALPHA_LOWER$CHAR_ALPHA_UPPER"
+			NUM_ALPHA=8
+			NUM_NUMBERS=1
+			NUM_SYMBOLS=1
+			NUM_WORDS=0
+			SPACING_POLICY=0
+		;;
+		HORSE|horse)
+			NUM_NUMBERS=0
+			NUM_SYMBOLS=0
+			NUM_WORDS=4
+			MIN_WORD_LENGTH=4
+			MAX_WORD_LENGTH=8
+			DEFAULT_MIN_WORD_LENGTH=false
+			DEFAULT_MAX_WORD_LENGTH=false
+			SPACING_POLICY=8
+	esac
+}
 
 PASSPHRASE_ONLY=false
 RANDOM=$$
@@ -99,16 +146,36 @@ do
                         DELIMITER="$2"
                         shift
                 ;;
+		-e|--alphacount)
+			NUM_ALPHA="$2"
+			shift
+		;;
+		-E|--alphastring)
+			ALPHA_STRING="$2"
+			shift
+		;;
                 -f|--capfirst)
                         CAPITALIZATION_POLICY=1
                 ;;
                 -F|--randomcapfirst)
                         CAPITALIZATION_POLICY=2
                 ;;
+		-g|--guarantee-standard-symbol)
+			GUARANTEE_STANDARD_SYMBOL="$2"
+			shift
+		;;
                 -h|--help)
                         show_help
 			exit 0
                 ;;
+                --help-policy)
+                       show_help_policy
+                       exit 0
+                ;;
+		-p|--policy)
+			set_policy $2
+			shift
+		;;
 		-k|--symbolcount)
 			NUM_SYMBOLS="$2"
 			shift
@@ -259,6 +326,11 @@ GENERATION_METRICS="Generating passphrase using $NUM_WORDS word(s)"
 if [[ $NUM_WORDS > 0 ]]; then
 	GENERATION_METRICS=$GENERATION_METRICS" from a pool of $((${#WORD_POOL[@]}+1)) words"
 fi
+GENERATION_METRICS=$GENERATION_METRICS", $NUM_ALPHA character(s)"
+# See warning for "symbols," below.
+if [[ $NUM_ALPHA > 0 ]]; then
+	GENERATION_METRICS=$GENERATION_METRICS" selected from $ALPHA_STRING"
+fi
 GENERATION_METRICS=$GENERATION_METRICS", $NUM_NUMBERS number(s)"
 if [[ $NUM_NUMBERS > 0 ]]; then
 	GENERATION_METRICS=$GENERATION_METRICS" in the range of $NUMBER_MIN to $NUMBER_MAX"
@@ -304,11 +376,22 @@ add_get_element_random_number() {
 }
 
 add_get_element_random_symbol() {
-        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'symbol')"$(get_element_random_symbol)"
-        ((NUM_SYMBOLS-=1))
-	if [[ $NUM_SYMBOLS -lt 1  ]]; then
-		remove_element_type_by_name 'symbol'
-	fi
+	key="$1"
+        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'symbol')"$(get_element_random_symbol $key)"
+	case $key in
+		symbol)
+		        ((NUM_SYMBOLS-=1))
+			if [[ $NUM_SYMBOLS -lt 1  ]]; then
+				remove_element_type_by_name 'symbol'
+			fi
+		;;
+		alpha)
+		        ((NUM_ALPHA-=1))
+			if [[ $NUM_ALPHA -lt 1  ]]; then
+				remove_element_type_by_name 'alpha'
+			fi
+		;;
+	esac
         PREVIOUS_ELEMENT_TYPE='symbol'
 }
 
@@ -325,8 +408,16 @@ get_element_random_number() {
 }
 
 get_element_random_symbol() {
+	key="$1"
         local element
-	element=${SYMBOL_STRING:$(get_random_number ${#SYMBOL_STRING}):1}
+	case $key in
+		symbol)
+			element=${SYMBOL_STRING:$(get_random_number ${#SYMBOL_STRING}):1}
+		;;
+		alpha)
+			element=${ALPHA_STRING:$(get_random_number ${#ALPHA_STRING}):1}
+		;;
+	esac
         echo "$element"
 }
 
@@ -372,6 +463,9 @@ load_element_types() {
 	if [[ $NUM_WORDS -gt 0 ]]; then
 		REMAINING_ELEMENT_TYPES+=('word')
 	fi
+	if [[ $NUM_ALPHA -gt 0 ]]; then
+		REMAINING_ELEMENT_TYPES+=('alpha')
+	fi
 	if [[ $NUM_NUMBERS -gt 0 ]]; then
 		REMAINING_ELEMENT_TYPES+=('number')
 	fi
@@ -390,11 +484,14 @@ generate_passphrase() {
 			word)
 				add_get_element_random_word
 			;;
+			alpha)
+				add_get_element_random_symbol alpha
+			;;
 			number)
 				add_get_element_random_number
 			;;
 			symbol)
-				add_get_element_random_symbol
+				add_get_element_random_symbol symbol
 			;;
 		esac
 	done

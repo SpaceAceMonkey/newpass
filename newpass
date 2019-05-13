@@ -98,6 +98,19 @@ show_help_policy() {
 	echo "Policies are a short-hand method of setting password generation options. Any options specified before the policy on the command-line"
 	echo "will be overwritten by the settings in the policy. Any options specified after the policy on the command-line will override the policy's options."
 	echo
+	echo "GENERIC"
+	echo "Generates a password with seven upper- and lower-case letters, one number from 10-98, and one standard symbol."
+	echo "You will receive a mix of upper- and lower-case letters the vast majority of the time, but neither is guaranteed."
+	echo "GENERIC passwords fulfill common password requirements for online sites."
+	echo "GENERIC passwords are generally in the range of 45-50 bits of entropy, and are not suitable for protecting critical data."
+	echo
+	echo "GENERIC-STRONGER"
+	echo "This is a beefier version of the GENERIC password, with a longer length, more numbers, and a larger pool of symbols."
+	echo "GENERIC-STRONGER passwords consist of twelve letters, two numbers in the range of 10-98, and two symbols."
+	echo "You will receive a mix of upper- and lower-case letters the vast majority of the time, but neither is guaranteed."
+	echo "GENERIC-STRONGER passwords are generally in the range of 45-50 bits of entropy, and are _not_ suitable for protecting critical data."
+	echo
+	echo "HORSE"
 }
 
 set_policy() {
@@ -107,9 +120,22 @@ set_policy() {
 		GENERIC|generic)
 			SYMBOL_STRING="$CHAR_STANDARD_SYMBOLS"
 			ALPHA_STRING="$CHAR_ALPHA_LOWER$CHAR_ALPHA_UPPER"
-			NUM_ALPHA=8
+			NUM_ALPHA=7
 			NUM_NUMBERS=1
+			NUMBER_MIN=10
+			NUMBER_MAX=98
 			NUM_SYMBOLS=1
+			NUM_WORDS=0
+			SPACING_POLICY=0
+		;;
+		GENERIC-STRONGER|generic-stronger)
+			SYMBOL_STRING="$CHAR_STANDARD_SYMBOLS""=+-_[]{}"
+			ALPHA_STRING="$CHAR_ALPHA_LOWER$CHAR_ALPHA_UPPER"
+			NUM_ALPHA=10
+			NUM_NUMBERS=2
+			NUMBER_MIN=102
+			NUMBER_MAX=998
+			NUM_SYMBOLS=2
 			NUM_WORDS=0
 			SPACING_POLICY=0
 		;;
@@ -118,7 +144,7 @@ set_policy() {
 			NUM_SYMBOLS=0
 			NUM_WORDS=4
 			MIN_WORD_LENGTH=4
-			MAX_WORD_LENGTH=8
+			MAX_WORD_LENGTH=10
 			DEFAULT_MIN_WORD_LENGTH=false
 			DEFAULT_MAX_WORD_LENGTH=false
 			SPACING_POLICY=8
@@ -160,10 +186,6 @@ do
                 -F|--randomcapfirst)
                         CAPITALIZATION_POLICY=2
                 ;;
-		-g|--guarantee-standard-symbol)
-			GUARANTEE_STANDARD_SYMBOL="$2"
-			shift
-		;;
                 -h|--help)
                         show_help
 			exit 0

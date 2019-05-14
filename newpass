@@ -133,7 +133,7 @@ set_policy() {
 			ALPHA_STRING="$CHAR_ALPHA_LOWER$CHAR_ALPHA_UPPER"
 			NUM_ALPHA=10
 			NUM_NUMBERS=2
-			NUMBER_MIN=102
+			NUMBER_MIN=100
 			NUMBER_MAX=998
 			NUM_SYMBOLS=2
 			NUM_WORDS=0
@@ -397,24 +397,27 @@ add_get_element_random_number() {
         PREVIOUS_ELEMENT_TYPE='number'
 }
 
+# If you pass garbage arguments for $1, garbage things will happen
 add_get_element_random_symbol() {
 	key="$1"
-        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'symbol')"$(get_element_random_symbol $key)"
+        PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" "$1")"$(get_element_random_symbol $key)"
 	case $key in
 		symbol)
 		        ((NUM_SYMBOLS-=1))
 			if [[ $NUM_SYMBOLS -lt 1  ]]; then
 				remove_element_type_by_name 'symbol'
+			        PREVIOUS_ELEMENT_TYPE='symbol'
 			fi
 		;;
 		alpha)
 		        ((NUM_ALPHA-=1))
 			if [[ $NUM_ALPHA -lt 1  ]]; then
 				remove_element_type_by_name 'alpha'
+			        PREVIOUS_ELEMENT_TYPE='alpha'
 			fi
 		;;
 	esac
-        PREVIOUS_ELEMENT_TYPE='symbol'
+        PREVIOUS_ELEMENT_TYPE="$1"
 }
 
 get_element_random_word() {

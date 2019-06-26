@@ -43,6 +43,8 @@ DEFAULT_NUMBER_MAX=true
 DEFAULT_MIN_WORD_LENGTH=true
 DEFAULT_MAX_WORD_LENGTH=true
 
+DISTRIBUTE_ELEMENTS_PROPORTIONATELY=true
+
 
 say_it() {
 	if [[ $PASSPHRASE_ONLY != true || $2 == true ]]; then
@@ -278,6 +280,7 @@ remove_element_type_by_name() {
 		if [[ ${REMAINING_ELEMENT_TYPES[$index]} == "$1"  ]]; then
 			unset REMAINING_ELEMENT_TYPES[$index]
 			REMAINING_ELEMENT_TYPES=("${REMAINING_ELEMENT_TYPES[@]}")
+			break
 		fi
 	done
 }
@@ -288,7 +291,7 @@ remove_element_type_by_name() {
 add_get_element_random_word() {
         PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'word')$(apply_capitalization_transform "$(get_element_random_word)")
         ((NUM_WORDS-=1))
-	if [[ $NUM_WORDS -lt 1  ]]; then
+	if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true || $NUM_WORDS -lt 1  ]]; then
 		remove_element_type_by_name 'word'
 	fi
         PREVIOUS_ELEMENT_TYPE='word'
@@ -297,7 +300,7 @@ add_get_element_random_word() {
 add_get_element_random_number() {
         PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'number')"$(get_element_random_number)"
         ((NUM_NUMBERS-=1))
-	if [[ $NUM_NUMBERS -lt 1  ]]; then
+	if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true || $NUM_NUMBERS -lt 1  ]]; then
 		remove_element_type_by_name 'number'
 	fi
         PREVIOUS_ELEMENT_TYPE='number'
@@ -306,7 +309,7 @@ add_get_element_random_number() {
 add_get_element_random_symbol() {
         PASSPHRASE=$PASSPHRASE$(conditionally_add_space "$PREVIOUS_ELEMENT_TYPE" 'symbol')"$(get_element_random_symbol)"
         ((NUM_SYMBOLS-=1))
-	if [[ $NUM_SYMBOLS -lt 1  ]]; then
+	if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true || $NUM_SYMBOLS -lt 1  ]]; then
 		remove_element_type_by_name 'symbol'
 	fi
         PREVIOUS_ELEMENT_TYPE='symbol'
@@ -370,20 +373,44 @@ conditionally_add_space() {
 
 load_element_types() {
 	if [[ $NUM_WORDS -gt 0 ]]; then
-		REMAINING_ELEMENT_TYPES+=('word')
+		if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true ]]; then
+			COUNTER=$NUM_WORDS
+			until [[ $COUNTER < 1 ]]; do
+				REMAINING_ELEMENT_TYPES+=('word')
+				((COUNTER-=1))
+			done
+		else
+			REMAINING_ELEMENT_TYPES+=('word')
+		fi
 	fi
 	if [[ $NUM_NUMBERS -gt 0 ]]; then
-		REMAINING_ELEMENT_TYPES+=('number')
+		if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true ]]; then
+			COUNTER=$NUM_NUMBERS
+			until [[ $COUNTER < 1 ]]; do
+				REMAINING_ELEMENT_TYPES+=('number')
+				((COUNTER-=1))
+			done
+		else
+			REMAINING_ELEMENT_TYPES+=('number')
+		fi
 	fi
 	if [[ $NUM_SYMBOLS -gt 0 ]]; then
-		REMAINING_ELEMENT_TYPES+=('symbol')
+		if [[ $DISTRIBUTE_ELEMENTS_PROPORTIONATELY == true ]]; then
+			COUNTER=$NUM_SYMBOLS
+			until [[ $COUNTER < 1 ]]; do
+				REMAINING_ELEMENT_TYPES+=('symbol')
+				((COUNTER-=1))
+			done
+		else
+			REMAINING_ELEMENT_TYPES+=('symbol')
+		fi
 	fi
 }
 
 generate_passphrase() {
-	while [[ ${#REMAINING_ELEMENT_TYPES} -gt 0 ]]
+	while [[ ${#REMAINING_ELEMENT_TYPES[@]} -gt 0 ]]
 	do
-		local element_type_to_generate=${REMAINING_ELEMENT_TYPES[((($(get_random_number ${#REMAINING_ELEMENT_TYPES}))))]}
+		local element_type_to_generate=${REMAINING_ELEMENT_TYPES[((($(get_random_number ${#REMAINING_ELEMENT_TYPES[@]}))))]}
 		case $element_type_to_generate in
 			# For convenience, the add_*_* methods also handle decrementing NUM_* variables,
 			# and removing unneeded elements from REMAINING_ELEMENT_TYPES
